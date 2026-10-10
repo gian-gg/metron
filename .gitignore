@@ -1,0 +1,42 @@
+# Build output
+/metron
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Tests and profiling
+*.test
+*.out
+coverage.*
+*.prof
+*.pprof
+
+# Go workspace
+go.work
+go.work.sum
+
+# Local recordings
+.metron/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
