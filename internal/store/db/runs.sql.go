@@ -52,12 +52,18 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) error {
 
 const listRuns = `-- name: ListRuns :many
 SELECT id, tag, case_name, command, start_time, end_time, exit_code FROM runs
+WHERE tag = ?1 OR ?1 IS NULL
 ORDER BY start_time DESC
-LIMIT ?
+LIMIT ?2
 `
 
-func (q *Queries) ListRuns(ctx context.Context, limit int64) ([]Run, error) {
-	rows, err := q.db.QueryContext(ctx, listRuns, limit)
+type ListRunsParams struct {
+	Tag   *string
+	Limit int64
+}
+
+func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]Run, error) {
+	rows, err := q.db.QueryContext(ctx, listRuns, arg.Tag, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

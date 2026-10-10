@@ -9,5 +9,6 @@ WHERE id = ?;
 
 -- name: ListRuns :many
 SELECT * FROM runs
+WHERE tag = sqlc.narg(tag) OR sqlc.narg(tag) IS NULL
 ORDER BY start_time DESC
-LIMIT ?;
+LIMIT sqlc.arg(limit);

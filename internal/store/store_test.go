@@ -80,11 +80,35 @@ func TestListRunsNewestFirst(t *testing.T) {
 		}
 	}
 
-	runs, err := s.ListRuns(ctx, 10)
+	runs, err := s.ListRuns(ctx, db.ListRunsParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("list runs: %v", err)
 	}
 	if len(runs) != 2 || runs[0].ID != "new" || runs[1].ID != "old" {
 		t.Fatalf("got %+v, want new then old", runs)
+	}
+}
+
+func TestListRunsFiltersByTag(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+
+	v1, v2 := "v1", "v2"
+	for _, r := range []db.CreateRunParams{
+		{ID: "a", Tag: &v1, Command: "agent"},
+		{ID: "b", Tag: &v2, Command: "agent"},
+		{ID: "c", Command: "agent"},
+	} {
+		if err := s.CreateRun(ctx, r); err != nil {
+			t.Fatalf("create run: %v", err)
+		}
+	}
+
+	runs, err := s.ListRuns(ctx, db.ListRunsParams{Tag: &v2, Limit: 10})
+	if err != nil {
+		t.Fatalf("list runs: %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != "b" {
+		t.Fatalf("got %+v, want only run b", runs)
 	}
 }
