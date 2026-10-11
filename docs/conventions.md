@@ -8,6 +8,7 @@ cmd/           CLI commands: parse flags, call into internal/
 internal/      all logic, private to metron
   store/       SQLite: migrations, queries, generated code
   runner/      starting and supervising the agent process
+  receiver/    OTLP receiver that saves spans
   render/      terminal output
 ```
 
@@ -21,6 +22,7 @@ internal/      all logic, private to metron
 - Pass dependencies in instead of reaching for them: take an `io.Writer` and `now`, not `os.Stdout` and `time.Now()`.
 - Private by default: export only what another package needs.
 - `internal/` packages never import `cmd`.
+- Define interfaces in the package that uses them (e.g. `receiver.SpanWriter`), not the one that implements them.
 - One concern per file; shared helpers go in a named file inside the package (e.g. `render/format.go`).
 
 ## Code
