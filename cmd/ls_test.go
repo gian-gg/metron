@@ -1,43 +1,13 @@
 package cmd
 
 import (
-	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/gian-gg/metron/internal/store"
 	"github.com/gian-gg/metron/internal/store/db"
 )
-
-func execute(t *testing.T, args ...string) string {
-	t.Helper()
-	root := NewRootCmd()
-	var out bytes.Buffer
-	root.SetOut(&out)
-	root.SetErr(&out)
-	root.SetArgs(args)
-	if err := root.Execute(); err != nil {
-		t.Fatalf("execute %v: %v\n%s", args, err, out.String())
-	}
-	return out.String()
-}
-
-func seed(t *testing.T, path string, runs ...db.CreateRunParams) {
-	t.Helper()
-	s, err := store.Open(context.Background(), path)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer func() { _ = s.Close() }()
-	for _, r := range runs {
-		if err := s.CreateRun(context.Background(), r); err != nil {
-			t.Fatalf("create run: %v", err)
-		}
-	}
-}
 
 func TestLsWithoutDatabaseShowsHintAndCreatesNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".metron", "metron.db")

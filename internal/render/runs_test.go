@@ -118,3 +118,25 @@ func TestRunsTableHasNoTrailingSpaces(t *testing.T) {
 		}
 	}
 }
+
+func TestRecorded(t *testing.T) {
+	start := int64(0)
+	end := (5100 * time.Millisecond).Nanoseconds()
+	zero := int64(0)
+	var buf bytes.Buffer
+
+	err := Recorded(&buf, db.Run{ID: "a1b2c3d4e5f6", StartTime: start, EndTime: &end, ExitCode: &zero})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	out := buf.String()
+	for _, want := range []string{"recorded a1b2c3d4", "✓ ok", "5.1s"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %q", want, out)
+		}
+	}
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("output contains color codes: %q", out)
+	}
+}

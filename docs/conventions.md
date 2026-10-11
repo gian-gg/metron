@@ -7,6 +7,7 @@ main.go        entry point, hands off to cmd
 cmd/           CLI commands: parse flags, call into internal/
 internal/      all logic, private to metron
   store/       SQLite: migrations, queries, generated code
+  runner/      starting and supervising the agent process
   render/      terminal output
 ```
 
@@ -31,6 +32,8 @@ internal/      all logic, private to metron
 - Times are stored as unix nanoseconds.
 - Named constants instead of magic numbers.
 - Pass `cmd.Context()` down to every database call.
+- A command that needs a specific exit code returns `*cmd.ExitError`; `main` exits with its code.
+- Functions that update a value return a new copy instead of changing it in place.
 
 ## Database
 

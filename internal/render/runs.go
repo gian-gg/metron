@@ -50,6 +50,16 @@ func Runs(w io.Writer, runs []db.Run, now time.Time) error {
 	return err
 }
 
+// Recorded writes a one-line summary of a finished run.
+func Recorded(w io.Writer, r db.Run) error {
+	st := newStyles(w)
+	sep := st.dim.Render(" · ")
+	_, err := fmt.Fprintln(w,
+		st.dim.Render("● recorded "+shortID(r.ID))+sep+statusCell(r, st)+sep+runDuration(r),
+	)
+	return err
+}
+
 func runDuration(r db.Run) string {
 	if r.EndTime == nil {
 		return placeholder

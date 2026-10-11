@@ -30,7 +30,7 @@ func newLsCmd() *cobra.Command {
 		Short: "List recent runs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			path, err := cmd.Flags().GetString("db")
+			path, err := dbPath(cmd)
 			if err != nil {
 				return err
 			}

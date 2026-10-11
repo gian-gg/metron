@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -110,5 +111,22 @@ func TestListRunsFiltersByTag(t *testing.T) {
 	}
 	if len(runs) != 1 || runs[0].ID != "b" {
 		t.Fatalf("got %+v, want only run b", runs)
+	}
+}
+
+func TestNewRunIDIsShortUniqueHex(t *testing.T) {
+	seen := map[string]bool{}
+	for range 100 {
+		id := store.NewRunID()
+		if len(id) != 12 {
+			t.Fatalf("id %q has length %d, want 12", id, len(id))
+		}
+		if _, err := hex.DecodeString(id); err != nil {
+			t.Fatalf("id %q is not hex", id)
+		}
+		if seen[id] {
+			t.Fatalf("duplicate id %q", id)
+		}
+		seen[id] = true
 	}
 }

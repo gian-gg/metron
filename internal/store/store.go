@@ -2,8 +2,10 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
@@ -17,6 +19,8 @@ import (
 
 // DefaultPath is where metron keeps its database, relative to the working directory.
 const DefaultPath = ".metron/metron.db"
+
+const runIDBytes = 6
 
 const pragmas = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)"
 
@@ -68,4 +72,11 @@ func migrate(ctx context.Context, conn *sql.DB) error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	return nil
+}
+
+// NewRunID returns a random 12-character hex run ID.
+func NewRunID() string {
+	b := make([]byte, runIDBytes)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

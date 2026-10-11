@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,8 +11,19 @@ import (
 )
 
 func main() {
-	if err := cmd.NewRootCmd().ExecuteContext(context.Background()); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "metron:", err)
-		os.Exit(1)
+	err := cmd.NewRootCmd().ExecuteContext(context.Background())
+	if err == nil {
+		return
 	}
+
+	var exitErr *cmd.ExitError
+	if errors.As(err, &exitErr) {
+		if exitErr.Err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "metron:", exitErr.Err)
+		}
+		os.Exit(exitErr.Code)
+	}
+
+	_, _ = fmt.Fprintln(os.Stderr, "metron:", err)
+	os.Exit(1)
 }
