@@ -130,3 +130,54 @@ func TestNewRunIDIsShortUniqueHex(t *testing.T) {
 		seen[id] = true
 	}
 }
+
+func spanRow(runID *string, spanID string) db.InsertSpanParams {
+	return db.InsertSpanParams{
+		TraceID: "t1", SpanID: spanID, RunID: runID, Name: "chat",
+		Status: "ok", StartTime: 1, EndTime: 2, Attributes: "{}",
+	}
+}
+
+func countSpans(t *testing.T, s *store.Store) int {
+	t.Helper()
+	var n int
+	if err := s.DB.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM spans").Scan(&n); err != nil {
+		t.Fatalf("count spans: %v", err)
+	}
+	return n
+}
+
+func TestInsertSpans(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+	runID := "run1"
+	if err := s.CreateRun(ctx, db.CreateRunParams{ID: runID, Command: "agent"}); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	batch := []db.InsertSpanParams{spanRow(&runID, "s1"), spanRow(&runID, "s2")}
+
+	if err := s.InsertSpans(ctx, batch); err != nil {
+		t.Fatalf("insert spans: %v", err)
+	}
+	if err := s.InsertSpans(ctx, batch); err != nil {
+		t.Fatalf("insert duplicate batch: %v", err)
+	}
+
+	if got := countSpans(t, s); got != 2 {
+		t.Errorf("got %d spans, want 2 (duplicates ignored)", got)
+	}
+}
+
+func TestInsertSpansRejectsUnknownRun(t *testing.T) {
+	s, _ := openTemp(t)
+	unknown := "missing"
+
+	err := s.InsertSpans(context.Background(), []db.InsertSpanParams{spanRow(&unknown, "s1")})
+
+	if err == nil {
+		t.Fatal("want foreign key error for unknown run")
+	}
+	if got := countSpans(t, s); got != 0 {
+		t.Errorf("got %d spans, want 0 after failed batch", got)
+	}
+}

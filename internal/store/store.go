@@ -74,6 +74,26 @@ func migrate(ctx context.Context, conn *sql.DB) error {
 	return nil
 }
 
+// InsertSpans saves a batch of spans in one transaction, skipping spans already stored.
+func (s *Store) InsertSpans(ctx context.Context, spans []db.InsertSpanParams) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin span batch: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	q := s.WithTx(tx)
+	for _, span := range spans {
+		if err := q.InsertSpan(ctx, span); err != nil {
+			return fmt.Errorf("insert span %s: %w", span.SpanID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit span batch: %w", err)
+	}
+	return nil
+}
+
 // NewRunID returns a random 12-character hex run ID.
 func NewRunID() string {
 	b := make([]byte, runIDBytes)
