@@ -1,10 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	"github.com/gian-gg/metron/internal/store"
 )
 
 func onlyRun(t *testing.T, path string) (tag, caseName string, exitCode int64, finished bool) {
@@ -46,8 +53,8 @@ func TestRunRecordsSuccess(t *testing.T) {
 
 	out := execute(t, "run", "--db", path, "--", "true")
 
-	if !strings.Contains(out, "recorded") {
-		t.Errorf("missing summary line:\n%s", out)
+	if !strings.Contains(out, "recorded") || !strings.Contains(out, "0 spans") {
+		t.Errorf("missing summary line with span count:\n%s", out)
 	}
 	if _, _, code, finished := onlyRun(t, path); code != 0 || !finished {
 		t.Errorf("got exit=%d finished=%v, want 0 and finished", code, finished)
@@ -86,5 +93,58 @@ func TestRunWithoutCommandFails(t *testing.T) {
 
 	if _, err := executeErr(t, "run", "--db", path); err == nil {
 		t.Fatal("want error when no command is given")
+	}
+}
+
+const helperAgentEnv = "METRON_HELPER_AGENT"
+
+// TestHelperAgent acts as an agent that exports two spans when run by TestRunRecordsSpans.
+func TestHelperAgent(t *testing.T) {
+	if os.Getenv(helperAgentEnv) != "1" {
+		t.Skip("only runs as a helper process")
+	}
+	ctx := context.Background()
+	exp, err := otlptracehttp.New(ctx)
+	if err != nil {
+		t.Fatalf("exporter: %v", err)
+	}
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+
+	ctx, parent := tp.Tracer("helper").Start(ctx, "agent")
+	_, child := tp.Tracer("helper").Start(ctx, "chat")
+	child.End()
+	parent.End()
+
+	if err := tp.Shutdown(ctx); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+}
+
+func TestRunRecordsSpans(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metron.db")
+	t.Setenv(helperAgentEnv, "1")
+
+	out := execute(t, "run", "--db", path, "--", os.Args[0], "-test.run=^TestHelperAgent$")
+
+	if !strings.Contains(out, "2 spans") {
+		t.Errorf("summary missing span count:\n%s", out)
+	}
+	runs := allRuns(t, path)
+	if len(runs) != 1 {
+		t.Fatalf("got %d runs, want 1", len(runs))
+	}
+
+	s, err := store.Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+	var n int
+	err = s.DB.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM spans WHERE run_id = ?", runs[0].ID).Scan(&n)
+	if err != nil {
+		t.Fatalf("count spans: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("got %d spans for run, want 2", n)
 	}
 }

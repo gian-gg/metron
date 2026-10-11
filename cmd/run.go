@@ -10,13 +10,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/gian-gg/metron/internal/receiver"
 	"github.com/gian-gg/metron/internal/render"
 	"github.com/gian-gg/metron/internal/runner"
 	"github.com/gian-gg/metron/internal/store"
 	"github.com/gian-gg/metron/internal/store/db"
 )
 
-const exitCannotStart = 127
+const (
+	exitCannotStart         = 127
+	receiverShutdownTimeout = 5 * time.Second
+)
 
 type runLabels struct {
 	tag      string
@@ -63,17 +67,16 @@ func record(cmd *cobra.Command, args []string, labels runLabels, signals <-chan 
 		return err
 	}
 
-	code, runErr := runner.Run(ctx, runner.Config{
-		Args:    args,
-		Env:     os.Environ(),
-		Stdin:   cmd.InOrStdin(),
-		Stdout:  cmd.OutOrStdout(),
-		Stderr:  cmd.ErrOrStderr(),
-		Signals: signals,
-	})
-	if runErr != nil {
-		code = exitCannotStart
+	rcv, err := receiver.Start(run.ID, s)
+	if err != nil {
+		if _, finishErr := finishRecord(ctx, s, run, exitCannotStart); finishErr != nil {
+			return finishErr
+		}
+		return &ExitError{Code: exitCannotStart, Err: err}
 	}
+
+	code, runErr := runAgent(cmd, args, rcv.Endpoint(), signals)
+	stopReceiver(ctx, rcv)
 
 	run, err = finishRecord(ctx, s, run, code)
 	if err != nil {
@@ -83,13 +86,34 @@ func record(cmd *cobra.Command, args []string, labels runLabels, signals <-chan 
 	if runErr != nil {
 		return &ExitError{Code: code, Err: runErr}
 	}
-	if err := render.Recorded(cmd.ErrOrStderr(), run); err != nil {
+	if err := render.Recorded(cmd.ErrOrStderr(), run, rcv.SpanCount()); err != nil {
 		return err
 	}
 	if code != 0 {
 		return &ExitError{Code: code}
 	}
 	return nil
+}
+
+func runAgent(cmd *cobra.Command, args []string, endpoint string, signals <-chan os.Signal) (int, error) {
+	code, err := runner.Run(cmd.Context(), runner.Config{
+		Args:    args,
+		Env:     receiver.Env(os.Environ(), endpoint),
+		Stdin:   cmd.InOrStdin(),
+		Stdout:  cmd.OutOrStdout(),
+		Stderr:  cmd.ErrOrStderr(),
+		Signals: signals,
+	})
+	if err != nil {
+		return exitCannotStart, err
+	}
+	return code, nil
+}
+
+func stopReceiver(ctx context.Context, rcv *receiver.Receiver) {
+	ctx, cancel := context.WithTimeout(ctx, receiverShutdownTimeout)
+	defer cancel()
+	_ = rcv.Shutdown(ctx)
 }
 
 func startRecord(ctx context.Context, s *store.Store, args []string, labels runLabels) (db.Run, error) {

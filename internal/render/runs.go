@@ -50,14 +50,21 @@ func Runs(w io.Writer, runs []db.Run, now time.Time) error {
 	return err
 }
 
-// Recorded writes a one-line summary of a finished run.
-func Recorded(w io.Writer, r db.Run) error {
+// Recorded writes a one-line summary of a finished run and how many spans it sent.
+func Recorded(w io.Writer, r db.Run, spans int) error {
 	st := newStyles(w)
 	sep := st.dim.Render(" · ")
 	_, err := fmt.Fprintln(w,
-		st.dim.Render("● recorded "+shortID(r.ID))+sep+statusCell(r, st)+sep+runDuration(r),
+		st.dim.Render("● recorded "+shortID(r.ID))+sep+statusCell(r, st)+sep+runDuration(r)+sep+spanCount(spans),
 	)
 	return err
+}
+
+func spanCount(n int) string {
+	if n == 1 {
+		return "1 span"
+	}
+	return fmt.Sprintf("%d spans", n)
 }
 
 func runDuration(r db.Run) string {

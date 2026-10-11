@@ -125,18 +125,34 @@ func TestRecorded(t *testing.T) {
 	zero := int64(0)
 	var buf bytes.Buffer
 
-	err := Recorded(&buf, db.Run{ID: "a1b2c3d4e5f6", StartTime: start, EndTime: &end, ExitCode: &zero})
+	err := Recorded(&buf, db.Run{ID: "a1b2c3d4e5f6", StartTime: start, EndTime: &end, ExitCode: &zero}, 6)
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
 	out := buf.String()
-	for _, want := range []string{"recorded a1b2c3d4", "✓ ok", "5.1s"} {
+	for _, want := range []string{"recorded a1b2c3d4", "✓ ok", "5.1s", "6 spans"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %q", want, out)
 		}
 	}
 	if strings.Contains(out, "\x1b[") {
 		t.Errorf("output contains color codes: %q", out)
+	}
+}
+
+func TestSpanCount(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{0, "0 spans"},
+		{1, "1 span"},
+		{6, "6 spans"},
+	}
+	for _, tt := range tests {
+		if got := spanCount(tt.n); got != tt.want {
+			t.Errorf("spanCount(%d) = %q, want %q", tt.n, got, tt.want)
+		}
 	}
 }
