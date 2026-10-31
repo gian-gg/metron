@@ -59,8 +59,10 @@ func runDuration(r db.Run) string {
 
 func status(r db.Run) string {
 	switch {
-	case r.EndTime == nil || r.ExitCode == nil:
+	case r.EndTime == nil:
 		return "running"
+	case r.ExitCode == nil:
+		return "done"
 	case *r.ExitCode == 0:
 		return "ok"
 	default:
@@ -73,7 +75,7 @@ func statusCell(r db.Run, st styles) string {
 	switch s {
 	case "running":
 		return st.running.Render("● " + s)
-	case "ok":
+	case "done", "ok":
 		return st.ok.Render("✓ " + s)
 	default:
 		return st.fail.Render("✗ " + s)

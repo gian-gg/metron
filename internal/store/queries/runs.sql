@@ -12,3 +12,6 @@ SELECT * FROM runs
 WHERE tag = sqlc.narg(tag) OR sqlc.narg(tag) IS NULL
 ORDER BY start_time DESC
 LIMIT sqlc.arg(limit);
+
+-- name: DeleteRun :exec
+DELETE FROM runs WHERE id = ?;

@@ -17,6 +17,7 @@ func TestStatus(t *testing.T) {
 		want string
 	}{
 		{"running", db.Run{}, "running"},
+		{"done without exit code", db.Run{EndTime: &end}, "done"},
 		{"ok", db.Run{EndTime: &end, ExitCode: &zero}, "ok"},
 		{"failed", db.Run{EndTime: &end, ExitCode: &one}, "exit 1"},
 	}

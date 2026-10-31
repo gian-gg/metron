@@ -16,7 +16,7 @@ import (
 
 const (
 	defaultLimit = 20
-	noRunsHint   = "No runs yet. Record one with: metron run -- <command>"
+	noRunsHint   = "No runs yet. Start recording with: metron serve"
 )
 
 func newLsCmd() *cobra.Command {

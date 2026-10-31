@@ -33,6 +33,15 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 	return err
 }
 
+const deleteRun = `-- name: DeleteRun :exec
+DELETE FROM runs WHERE id = ?
+`
+
+func (q *Queries) DeleteRun(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteRun, id)
+	return err
+}
+
 const finishRun = `-- name: FinishRun :exec
 UPDATE runs
 SET end_time = ?, exit_code = ?
