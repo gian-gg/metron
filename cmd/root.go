@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"runtime/debug"
+
 	"github.com/spf13/cobra"
 
 	"github.com/gian-gg/metron/cmd/compare"
@@ -18,7 +20,7 @@ func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "metron",
 		Short:         "Local-first observability for AI agents",
-		Version:       Version,
+		Version:       resolveVersion(Version, debug.ReadBuildInfo),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -27,4 +29,15 @@ func NewRootCmd() *cobra.Command {
 
 	root.AddCommand(ls.New(), show.New(), compare.New(), serve.New())
 	return root
+}
+
+// resolveVersion prefers the version injected at build time, then the module version of a go install.
+func resolveVersion(version string, read func() (*debug.BuildInfo, bool)) string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := read(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return version
 }
