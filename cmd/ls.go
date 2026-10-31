@@ -3,14 +3,11 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gian-gg/metron/internal/render"
-	"github.com/gian-gg/metron/internal/store"
 	"github.com/gian-gg/metron/internal/store/db"
 )
 
@@ -30,17 +27,11 @@ func newLsCmd() *cobra.Command {
 		Short: "List recorded sessions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			path, err := dbPath(cmd)
-			if err != nil {
-				return err
-			}
-
-			if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+			s, err := openExisting(cmd)
+			if errors.Is(err, errNoDatabase) {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), noSessionsHint)
 				return nil
 			}
-
-			s, err := store.Open(cmd.Context(), path)
 			if err != nil {
 				return err
 			}

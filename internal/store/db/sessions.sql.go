@@ -89,3 +89,37 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]S
 	}
 	return items, nil
 }
+
+const sessionsByPrefix = `-- name: SessionsByPrefix :many
+SELECT id, tag, start_time, end_time FROM sessions
+WHERE substr(id, 1, length(CAST(?1 AS TEXT))) = CAST(?1 AS TEXT)
+LIMIT 2
+`
+
+func (q *Queries) SessionsByPrefix(ctx context.Context, prefix string) ([]Session, error) {
+	rows, err := q.db.QueryContext(ctx, sessionsByPrefix, prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.Tag,
+			&i.StartTime,
+			&i.EndTime,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

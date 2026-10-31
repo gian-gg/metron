@@ -49,3 +49,59 @@ func (q *Queries) InsertSpan(ctx context.Context, arg InsertSpanParams) error {
 	)
 	return err
 }
+
+const listSessionSpans = `-- name: ListSessionSpans :many
+SELECT trace_id, span_id, parent_span_id, name, kind, status, start_time, end_time, model, input_tokens, output_tokens
+FROM spans
+WHERE session_id = ?
+ORDER BY start_time, span_id
+`
+
+type ListSessionSpansRow struct {
+	TraceID      string
+	SpanID       string
+	ParentSpanID *string
+	Name         string
+	Kind         string
+	Status       string
+	StartTime    int64
+	EndTime      int64
+	Model        *string
+	InputTokens  *int64
+	OutputTokens *int64
+}
+
+func (q *Queries) ListSessionSpans(ctx context.Context, sessionID string) ([]ListSessionSpansRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionSpans, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionSpansRow
+	for rows.Next() {
+		var i ListSessionSpansRow
+		if err := rows.Scan(
+			&i.TraceID,
+			&i.SpanID,
+			&i.ParentSpanID,
+			&i.Name,
+			&i.Kind,
+			&i.Status,
+			&i.StartTime,
+			&i.EndTime,
+			&i.Model,
+			&i.InputTokens,
+			&i.OutputTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -21,6 +22,12 @@ import (
 const DefaultPath = ".metron/metron.db"
 
 const sessionIDBytes = 6
+
+// Errors returned by FindSession.
+var (
+	ErrSessionNotFound  = errors.New("no session matches")
+	ErrSessionAmbiguous = errors.New("more than one session matches")
+)
 
 const pragmas = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)"
 
@@ -99,4 +106,20 @@ func NewSessionID() string {
 	b := make([]byte, sessionIDBytes)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// FindSession returns the one session whose ID starts with prefix.
+func (s *Store) FindSession(ctx context.Context, prefix string) (db.Session, error) {
+	matches, err := s.SessionsByPrefix(ctx, prefix)
+	if err != nil {
+		return db.Session{}, fmt.Errorf("find session: %w", err)
+	}
+	switch len(matches) {
+	case 0:
+		return db.Session{}, fmt.Errorf("%w %q", ErrSessionNotFound, prefix)
+	case 1:
+		return matches[0], nil
+	default:
+		return db.Session{}, fmt.Errorf("%w %q", ErrSessionAmbiguous, prefix)
+	}
 }

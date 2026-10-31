@@ -3,6 +3,7 @@ package store_test
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -236,5 +237,62 @@ func TestSpansHaveNoCostColumn(t *testing.T) {
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("rows: %v", err)
+	}
+}
+
+func TestFindSession(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+	for _, id := range []string{"abc123def456", "abc999000111", "fff000fff000"} {
+		if err := s.CreateSession(ctx, db.CreateSessionParams{ID: id}); err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+	}
+	tests := []struct {
+		name    string
+		prefix  string
+		wantID  string
+		wantErr error
+	}{
+		{"full id", "abc123def456", "abc123def456", nil},
+		{"unique prefix", "fff", "fff000fff000", nil},
+		{"ambiguous prefix", "abc", "", store.ErrSessionAmbiguous},
+		{"no match", "zzz", "", store.ErrSessionNotFound},
+		{"wildcard is not a pattern", "%", "", store.ErrSessionNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := s.FindSession(ctx, tt.prefix)
+
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if got.ID != tt.wantID {
+				t.Errorf("id = %q, want %q", got.ID, tt.wantID)
+			}
+		})
+	}
+}
+
+func TestListSessionSpansOrdersByStartAndScopesToSession(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+	for _, id := range []string{"s1", "s2"} {
+		if err := s.CreateSession(ctx, db.CreateSessionParams{ID: id}); err != nil {
+			t.Fatalf("create session: %v", err)
+		}
+	}
+	late, early, other := spanRow("s1", "late"), spanRow("s1", "early"), spanRow("s2", "other")
+	late.StartTime, early.StartTime, other.StartTime = 20, 10, 5
+	if err := s.InsertSpans(ctx, []db.InsertSpanParams{late, early, other}); err != nil {
+		t.Fatalf("insert spans: %v", err)
+	}
+
+	spans, err := s.ListSessionSpans(ctx, "s1")
+	if err != nil {
+		t.Fatalf("list spans: %v", err)
+	}
+	if len(spans) != 2 || spans[0].SpanID != "early" || spans[1].SpanID != "late" {
+		t.Fatalf("got %+v, want early then late and nothing from s2", spans)
 	}
 }

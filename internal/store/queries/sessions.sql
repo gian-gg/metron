@@ -15,3 +15,8 @@ LIMIT sqlc.arg(limit);
 
 -- name: DeleteSession :exec
 DELETE FROM sessions WHERE id = ?;
+
+-- name: SessionsByPrefix :many
+SELECT * FROM sessions
+WHERE substr(id, 1, length(CAST(sqlc.arg(prefix) AS TEXT))) = CAST(sqlc.arg(prefix) AS TEXT)
+LIMIT 2;
