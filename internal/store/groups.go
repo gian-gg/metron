@@ -63,3 +63,38 @@ func (s *Store) GroupSpans(ctx context.Context, g Group) ([]db.ListSessionSpansR
 	})
 	return spans, nil
 }
+
+// GroupTraceStats returns one row per trace across every session in g, merging a trace split between sessions.
+func (s *Store) GroupTraceStats(ctx context.Context, g Group) ([]db.ListSessionTraceStatsRow, error) {
+	var merged []db.ListSessionTraceStatsRow
+	index := map[string]int{}
+	for _, session := range g.Sessions {
+		rows, err := s.ListSessionTraceStats(ctx, session.ID)
+		if err != nil {
+			return nil, fmt.Errorf("trace stats of %s: %w", session.ID, err)
+		}
+		for _, row := range rows {
+			i, seen := index[row.TraceID]
+			if !seen {
+				index[row.TraceID] = len(merged)
+				merged = append(merged, row)
+				continue
+			}
+			merged[i] = mergeTraceStats(merged[i], row)
+		}
+	}
+	return merged, nil
+}
+
+func mergeTraceStats(a, b db.ListSessionTraceStatsRow) db.ListSessionTraceStatsRow {
+	return db.ListSessionTraceStatsRow{
+		TraceID:      a.TraceID,
+		Started:      min(a.Started, b.Started),
+		Ended:        max(a.Ended, b.Ended),
+		Errors:       a.Errors + b.Errors,
+		ModelCalls:   a.ModelCalls + b.ModelCalls,
+		ToolCalls:    a.ToolCalls + b.ToolCalls,
+		InputTokens:  a.InputTokens + b.InputTokens,
+		OutputTokens: a.OutputTokens + b.OutputTokens,
+	}
+}

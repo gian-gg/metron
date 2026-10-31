@@ -105,3 +105,61 @@ func (q *Queries) ListSessionSpans(ctx context.Context, sessionID string) ([]Lis
 	}
 	return items, nil
 }
+
+const listSessionTraceStats = `-- name: ListSessionTraceStats :many
+SELECT
+    trace_id,
+    CAST(MIN(start_time) AS INTEGER)                                                   AS started,
+    CAST(MAX(end_time) AS INTEGER)                                                     AS ended,
+    CAST(SUM(status = 'error') AS INTEGER)                                             AS errors,
+    CAST(SUM(kind = 'model') AS INTEGER)                                               AS model_calls,
+    CAST(SUM(kind = 'tool') AS INTEGER)                                                AS tool_calls,
+    CAST(COALESCE(SUM(CASE WHEN kind = 'model' THEN input_tokens END), 0) AS INTEGER)  AS input_tokens,
+    CAST(COALESCE(SUM(CASE WHEN kind = 'model' THEN output_tokens END), 0) AS INTEGER) AS output_tokens
+FROM spans
+WHERE session_id = ?
+GROUP BY trace_id
+`
+
+type ListSessionTraceStatsRow struct {
+	TraceID      string
+	Started      int64
+	Ended        int64
+	Errors       int64
+	ModelCalls   int64
+	ToolCalls    int64
+	InputTokens  int64
+	OutputTokens int64
+}
+
+func (q *Queries) ListSessionTraceStats(ctx context.Context, sessionID string) ([]ListSessionTraceStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionTraceStats, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionTraceStatsRow
+	for rows.Next() {
+		var i ListSessionTraceStatsRow
+		if err := rows.Scan(
+			&i.TraceID,
+			&i.Started,
+			&i.Ended,
+			&i.Errors,
+			&i.ModelCalls,
+			&i.ToolCalls,
+			&i.InputTokens,
+			&i.OutputTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

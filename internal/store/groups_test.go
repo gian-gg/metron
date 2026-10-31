@@ -157,3 +157,72 @@ func TestGroupSpansMergesSessionsByStartTime(t *testing.T) {
 		t.Errorf("got %v, want s1, s3, s2 in start order across both sessions", got)
 	}
 }
+
+func TestGroupTraceStatsCountsKindsErrorsAndModelTokens(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+	if err := s.CreateSession(ctx, db.CreateSessionParams{ID: "s1"}); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	root, chat, tool, failed := spanRow("s1", "root"), spanRow("s1", "chat"), spanRow("s1", "tool"), spanRow("s1", "failed")
+	root.StartTime, root.EndTime = 100, 900
+	chat.Kind, chat.StartTime, chat.EndTime = "model", 200, 400
+	tool.Kind, tool.Status, tool.StartTime, tool.EndTime = "tool", "error", 400, 500
+	failed.Kind, failed.StartTime, failed.EndTime = "model", 500, 600
+	in1, out1, in2, toolIn := int64(100), int64(10), int64(50), int64(7)
+	chat.InputTokens, chat.OutputTokens = &in1, &out1
+	failed.InputTokens = &in2
+	tool.InputTokens = &toolIn
+	root.InputTokens = &toolIn
+	if err := s.InsertSpans(ctx, []db.InsertSpanParams{root, chat, tool, failed}); err != nil {
+		t.Fatalf("insert spans: %v", err)
+	}
+	group, err := s.FindGroup(ctx, "s1")
+	if err != nil {
+		t.Fatalf("find group: %v", err)
+	}
+
+	stats, err := s.GroupTraceStats(ctx, group)
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("got %d traces, want 1", len(stats))
+	}
+	got := stats[0]
+	want := db.ListSessionTraceStatsRow{
+		TraceID: "t1", Started: 100, Ended: 900, Errors: 1, ModelCalls: 2, ToolCalls: 1, InputTokens: 150, OutputTokens: 10,
+	}
+	if got != want {
+		t.Errorf("got  %+v\nwant %+v (tokens count model spans only)", got, want)
+	}
+}
+
+func TestGroupTraceStatsMergesATraceSplitAcrossSessions(t *testing.T) {
+	s := seedGroups(t)
+	ctx := context.Background()
+	extra := spanRow("bbbbbbbbbbbb", "s9")
+	extra.TraceID, extra.Kind, extra.StartTime, extra.EndTime = "t1", "model", 5, 50
+	if err := s.InsertSpans(ctx, []db.InsertSpanParams{extra}); err != nil {
+		t.Fatalf("insert span: %v", err)
+	}
+	group, err := s.FindGroup(ctx, "v1")
+	if err != nil {
+		t.Fatalf("find group: %v", err)
+	}
+
+	stats, err := s.GroupTraceStats(ctx, group)
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	byID := map[string]db.ListSessionTraceStatsRow{}
+	for _, st := range stats {
+		byID[st.TraceID] = st
+	}
+	if len(stats) != 2 {
+		t.Fatalf("got %d traces, want t1 (split across two sessions) merged with t2", len(stats))
+	}
+	if merged := byID["t1"]; merged.Started != 5 || merged.Ended != 50 || merged.ModelCalls != 1 {
+		t.Errorf("merged t1 = %+v, want start 5, end 50 and the extra model call", merged)
+	}
+}
