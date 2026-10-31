@@ -79,18 +79,18 @@ func runServe(t *testing.T, args ...string) (stderr *syncBuffer, addr string, st
 	return nil, "", nil
 }
 
-func listRuns(t *testing.T, path string) (*store.Store, []db.Run) {
+func listSessions(t *testing.T, path string) (*store.Store, []db.Session) {
 	t.Helper()
 	s, err := store.Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	runs, err := s.ListRuns(context.Background(), db.ListRunsParams{Limit: 100})
+	sessions, err := s.ListSessions(context.Background(), db.ListSessionsParams{Limit: 100})
 	if err != nil {
-		t.Fatalf("list runs: %v", err)
+		t.Fatalf("list sessions: %v", err)
 	}
-	return s, runs
+	return s, sessions
 }
 
 func TestServeRecordsSpansUnderATaggedSession(t *testing.T) {
@@ -109,19 +109,19 @@ func TestServeRecordsSpansUnderATaggedSession(t *testing.T) {
 		t.Fatalf("serve: %v", err)
 	}
 
-	s, runs := listRuns(t, path)
-	if len(runs) != 1 {
-		t.Fatalf("got %d sessions, want 1", len(runs))
+	s, sessions := listSessions(t, path)
+	if len(sessions) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(sessions))
 	}
-	run := runs[0]
-	if run.Tag == nil || *run.Tag != "v1" || run.Command != serveCommand {
-		t.Errorf("session = tag %v command %q, want v1 / %s", run.Tag, run.Command, serveCommand)
+	session := sessions[0]
+	if session.Tag == nil || *session.Tag != "v1" {
+		t.Errorf("session tag = %v, want v1", session.Tag)
 	}
-	if run.EndTime == nil || run.ExitCode != nil {
-		t.Errorf("session end=%v exit=%v, want an end time and no exit code", run.EndTime, run.ExitCode)
+	if session.EndTime == nil {
+		t.Error("session has no end time after shutdown")
 	}
 	var spans int
-	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM spans WHERE run_id = ?`, run.ID).Scan(&spans); err != nil {
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM spans WHERE session_id = ?`, session.ID).Scan(&spans); err != nil {
 		t.Fatalf("count spans: %v", err)
 	}
 	if spans != 1 {
@@ -146,8 +146,8 @@ func TestServeFailsOnTakenPortAndLeavesNoSession(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "--port") {
 		t.Fatalf("err = %v, want one pointing at --port", err)
 	}
-	if _, runs := listRuns(t, path); len(runs) != 0 {
-		t.Errorf("got %d sessions, want none left behind", len(runs))
+	if _, sessions := listSessions(t, path); len(sessions) != 0 {
+		t.Errorf("got %d sessions, want none left behind", len(sessions))
 	}
 }
 

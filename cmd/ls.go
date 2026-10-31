@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	defaultLimit = 20
-	noRunsHint   = "No runs yet. Start recording with: metron serve"
+	defaultLimit   = 20
+	noSessionsHint = "No sessions yet. Start recording with: metron serve"
 )
 
 func newLsCmd() *cobra.Command {
@@ -27,7 +27,7 @@ func newLsCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "ls",
-		Short: "List recent runs",
+		Short: "List recorded sessions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := dbPath(cmd)
@@ -36,7 +36,7 @@ func newLsCmd() *cobra.Command {
 			}
 
 			if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), noRunsHint)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), noSessionsHint)
 				return nil
 			}
 
@@ -46,25 +46,25 @@ func newLsCmd() *cobra.Command {
 			}
 			defer func() { _ = s.Close() }()
 
-			params := db.ListRunsParams{Limit: int64(limit)}
+			params := db.ListSessionsParams{Limit: int64(limit)}
 			if tag != "" {
 				params.Tag = &tag
 			}
 
-			runs, err := s.ListRuns(cmd.Context(), params)
+			sessions, err := s.ListSessions(cmd.Context(), params)
 			if err != nil {
-				return fmt.Errorf("list runs: %w", err)
+				return fmt.Errorf("list sessions: %w", err)
 			}
 
-			if len(runs) == 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), noRunsHint)
+			if len(sessions) == 0 {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), noSessionsHint)
 				return nil
 			}
-			return render.Runs(cmd.OutOrStdout(), runs, time.Now())
+			return render.Sessions(cmd.OutOrStdout(), sessions, time.Now())
 		},
 	}
 
-	cmd.Flags().IntVarP(&limit, "limit", "n", defaultLimit, "maximum number of runs to show")
-	cmd.Flags().StringVar(&tag, "tag", "", "only show runs with this tag")
+	cmd.Flags().IntVarP(&limit, "limit", "n", defaultLimit, "maximum number of sessions to show")
+	cmd.Flags().StringVar(&tag, "tag", "", "only show sessions with this tag")
 	return cmd
 }

@@ -46,7 +46,7 @@ func (f *fakeWriter) byName() map[string]db.InsertSpanParams {
 func startReceiver(t *testing.T) (*Receiver, *fakeWriter) {
 	t.Helper()
 	w := &fakeWriter{}
-	r, err := Start("run1", w, []string{"127.0.0.1:0"})
+	r, err := Start("session1", w, []string{"127.0.0.1:0"})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -97,8 +97,8 @@ func assertTrace(t *testing.T, r *Receiver, w *fakeWriter) {
 	if chat.TraceID != agent.TraceID || len(chat.TraceID) != 32 {
 		t.Errorf("trace ids %q / %q, want equal 32-char hex", chat.TraceID, agent.TraceID)
 	}
-	if chat.RunID == nil || *chat.RunID != "run1" {
-		t.Errorf("run id = %v, want run1", chat.RunID)
+	if chat.SessionID != "session1" {
+		t.Errorf("session id = %q, want session1", chat.SessionID)
 	}
 	if chat.Status != "error" || agent.Status != "unset" {
 		t.Errorf("status chat=%q agent=%q, want error and unset", chat.Status, agent.Status)
@@ -218,7 +218,7 @@ func TestReceiverRejectsBadBody(t *testing.T) {
 
 func TestReceiverListensOnEveryAddress(t *testing.T) {
 	w := &fakeWriter{}
-	r, err := Start("run1", w, []string{"127.0.0.1:0", "127.0.0.1:0"})
+	r, err := Start("session1", w, []string{"127.0.0.1:0", "127.0.0.1:0"})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestStartFailsWhenAddressIsTaken(t *testing.T) {
 	defer func() { _ = taken.Close() }()
 	free := "127.0.0.1:0"
 
-	_, err = Start("run1", &fakeWriter{}, []string{free, taken.Addr().String()})
+	_, err = Start("session1", &fakeWriter{}, []string{free, taken.Addr().String()})
 
 	if err == nil || !strings.Contains(err.Error(), taken.Addr().String()) {
 		t.Fatalf("err = %v, want one naming %s", err, taken.Addr())
@@ -268,7 +268,7 @@ func TestStartFailsWhenAddressIsTaken(t *testing.T) {
 }
 
 func TestStartRequiresAnAddress(t *testing.T) {
-	if _, err := Start("run1", &fakeWriter{}, nil); err == nil {
+	if _, err := Start("session1", &fakeWriter{}, nil); err == nil {
 		t.Fatal("want an error when no address is given")
 	}
 }

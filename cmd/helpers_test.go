@@ -29,16 +29,16 @@ func execute(t *testing.T, args ...string) string {
 	return out
 }
 
-func seed(t *testing.T, path string, runs ...db.CreateRunParams) {
+func seed(t *testing.T, path string, sessions ...db.CreateSessionParams) {
 	t.Helper()
 	s, err := store.Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	defer func() { _ = s.Close() }()
-	for _, r := range runs {
-		if err := s.CreateRun(context.Background(), r); err != nil {
-			t.Fatalf("create run: %v", err)
+	for _, ses := range sessions {
+		if err := s.CreateSession(context.Background(), ses); err != nil {
+			t.Fatalf("create session: %v", err)
 		}
 	}
 }

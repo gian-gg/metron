@@ -20,7 +20,7 @@ import (
 // DefaultPath is where metron keeps its database, relative to the working directory.
 const DefaultPath = ".metron/metron.db"
 
-const runIDBytes = 6
+const sessionIDBytes = 6
 
 const pragmas = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)"
 
@@ -94,9 +94,9 @@ func (s *Store) InsertSpans(ctx context.Context, spans []db.InsertSpanParams) er
 	return nil
 }
 
-// NewRunID returns a random 12-character hex run ID.
-func NewRunID() string {
-	b := make([]byte, runIDBytes)
+// NewSessionID returns a random 12-character hex session ID.
+func NewSessionID() string {
+	b := make([]byte, sessionIDBytes)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }

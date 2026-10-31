@@ -1,2 +1,2 @@
-// Package store persists runs and spans in SQLite.
+// Package store persists sessions and spans in SQLite.
 package store

@@ -1,4 +1,4 @@
-// Command metron records and inspects AI agent runs.
+// Command metron records and inspects AI agent sessions.
 package main
 
 import (

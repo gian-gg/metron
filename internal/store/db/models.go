@@ -4,21 +4,18 @@
 
 package db
 
-type Run struct {
+type Session struct {
 	ID        string
 	Tag       *string
-	CaseName  *string
-	Command   string
 	StartTime int64
 	EndTime   *int64
-	ExitCode  *int64
 }
 
 type Span struct {
 	TraceID      string
 	SpanID       string
 	ParentSpanID *string
-	RunID        *string
+	SessionID    string
 	Name         string
 	Kind         string
 	Status       string

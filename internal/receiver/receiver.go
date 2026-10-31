@@ -25,17 +25,17 @@ type SpanWriter interface {
 
 // Receiver accepts OTLP trace exports for one session on its listen addresses.
 type Receiver struct {
-	runID  string
-	writer SpanWriter
-	server *http.Server
-	grpc   *grpc.Server
-	mux    *http.ServeMux
-	addrs  []string
-	count  atomic.Int64
+	sessionID string
+	writer    SpanWriter
+	server    *http.Server
+	grpc      *grpc.Server
+	mux       *http.ServeMux
+	addrs     []string
+	count     atomic.Int64
 }
 
 // Start listens on every address and serves OTLP over HTTP and gRPC on each.
-func Start(runID string, w SpanWriter, addrs []string) (*Receiver, error) {
+func Start(sessionID string, w SpanWriter, addrs []string) (*Receiver, error) {
 	if len(addrs) == 0 {
 		return nil, errors.New("listen for spans: no address given")
 	}
@@ -51,10 +51,10 @@ func Start(runID string, w SpanWriter, addrs []string) (*Receiver, error) {
 	}
 
 	r := &Receiver{
-		runID:  runID,
-		writer: w,
-		grpc:   grpc.NewServer(),
-		mux:    http.NewServeMux(),
+		sessionID: sessionID,
+		writer:    w,
+		grpc:      grpc.NewServer(),
+		mux:       http.NewServeMux(),
 	}
 	coltracepb.RegisterTraceServiceServer(r.grpc, &traceService{receiver: r})
 	r.mux.HandleFunc("POST /v1/traces", r.handleTraces)
@@ -112,7 +112,7 @@ func (r *Receiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Receiver) accept(ctx context.Context, req *coltracepb.ExportTraceServiceRequest) error {
-	rows, err := toRows(r.runID, req)
+	rows, err := toRows(r.sessionID, req)
 	if err != nil {
 		return err
 	}

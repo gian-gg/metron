@@ -10,7 +10,7 @@ import (
 )
 
 const insertSpan = `-- name: InsertSpan :exec
-INSERT INTO spans (trace_id, span_id, parent_span_id, run_id, name, status, start_time, end_time, attributes)
+INSERT INTO spans (trace_id, span_id, parent_span_id, session_id, name, status, start_time, end_time, attributes)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (trace_id, span_id) DO NOTHING
 `
@@ -19,7 +19,7 @@ type InsertSpanParams struct {
 	TraceID      string
 	SpanID       string
 	ParentSpanID *string
-	RunID        *string
+	SessionID    string
 	Name         string
 	Status       string
 	StartTime    int64
@@ -32,7 +32,7 @@ func (q *Queries) InsertSpan(ctx context.Context, arg InsertSpanParams) error {
 		arg.TraceID,
 		arg.SpanID,
 		arg.ParentSpanID,
-		arg.RunID,
+		arg.SessionID,
 		arg.Name,
 		arg.Status,
 		arg.StartTime,

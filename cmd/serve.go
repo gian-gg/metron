@@ -23,7 +23,6 @@ const (
 	defaultHTTPPort         = 4318
 	defaultGRPCPort         = 4317
 	defaultListen           = "127.0.0.1"
-	serveCommand            = "serve"
 	receiverShutdownTimeout = 5 * time.Second
 )
 
@@ -66,9 +65,9 @@ func serve(ctx context.Context, cmd *cobra.Command, opts serveOptions) error {
 	}
 	defer func() { _ = s.Close() }()
 
-	id := store.NewRunID()
-	err = s.CreateRun(ctx, db.CreateRunParams{
-		ID: id, Tag: optional(opts.tag), Command: serveCommand, StartTime: time.Now().UnixNano(),
+	id := store.NewSessionID()
+	err = s.CreateSession(ctx, db.CreateSessionParams{
+		ID: id, Tag: optional(opts.tag), StartTime: time.Now().UnixNano(),
 	})
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -77,7 +76,7 @@ func serve(ctx context.Context, cmd *cobra.Command, opts serveOptions) error {
 	rcv, err := receiver.Start(id, s, listenAddrs(opts))
 	if err != nil {
 		startErr := fmt.Errorf("%w (change it with --listen, --port or --grpc-port)", err)
-		if delErr := s.DeleteRun(context.WithoutCancel(ctx), id); delErr != nil {
+		if delErr := s.DeleteSession(context.WithoutCancel(ctx), id); delErr != nil {
 			return errors.Join(startErr, fmt.Errorf("delete session: %w", delErr))
 		}
 		return startErr
@@ -100,7 +99,7 @@ func stopServing(ctx context.Context, cmd *cobra.Command, s *store.Store, rcv *r
 	_ = rcv.Shutdown(shutdownCtx)
 
 	end := time.Now().UnixNano()
-	if err := s.FinishRun(done, db.FinishRunParams{EndTime: &end, ID: id}); err != nil {
+	if err := s.FinishSession(done, db.FinishSessionParams{EndTime: &end, ID: id}); err != nil {
 		return fmt.Errorf("finish session: %w", err)
 	}
 	return render.Stopped(cmd.ErrOrStderr(), rcv.SpanCount())

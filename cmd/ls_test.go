@@ -14,7 +14,7 @@ func TestLsWithoutDatabaseShowsHintAndCreatesNothing(t *testing.T) {
 
 	out := execute(t, "ls", "--db", path)
 
-	if !strings.Contains(out, "No runs yet") {
+	if !strings.Contains(out, "No sessions yet") {
 		t.Errorf("missing hint:\n%s", out)
 	}
 	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
@@ -22,14 +22,14 @@ func TestLsWithoutDatabaseShowsHintAndCreatesNothing(t *testing.T) {
 	}
 }
 
-func TestLsListsRuns(t *testing.T) {
+func TestLsListsSessions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "metron.db")
-	seed(t, path, db.CreateRunParams{ID: "run-one-id", Command: "agent", StartTime: 1})
+	seed(t, path, db.CreateSessionParams{ID: "session-one-id", StartTime: 1})
 
 	out := execute(t, "ls", "--db", path)
 
-	if !strings.Contains(out, "run-one-") {
-		t.Errorf("run missing:\n%s", out)
+	if !strings.Contains(out, "session-") {
+		t.Errorf("session missing:\n%s", out)
 	}
 }
 
@@ -37,14 +37,14 @@ func TestLsFiltersByTag(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "metron.db")
 	v1, v2 := "v1", "v2"
 	seed(t, path,
-		db.CreateRunParams{ID: "aaaaaaaa", Tag: &v1, Command: "agent", StartTime: 1},
-		db.CreateRunParams{ID: "bbbbbbbb", Tag: &v2, Command: "agent", StartTime: 2},
+		db.CreateSessionParams{ID: "aaaaaaaa", Tag: &v1, StartTime: 1},
+		db.CreateSessionParams{ID: "bbbbbbbb", Tag: &v2, StartTime: 2},
 	)
 
 	out := execute(t, "ls", "--db", path, "--tag", "v2")
 
 	if strings.Contains(out, "aaaaaaaa") || !strings.Contains(out, "bbbbbbbb") {
-		t.Errorf("want only v2 run:\n%s", out)
+		t.Errorf("want only v2 session:\n%s", out)
 	}
 }
 
@@ -54,7 +54,7 @@ func TestLsEmptyDatabaseShowsHint(t *testing.T) {
 
 	out := execute(t, "ls", "--db", path)
 
-	if !strings.Contains(out, "No runs yet") {
+	if !strings.Contains(out, "No sessions yet") {
 		t.Errorf("missing hint:\n%s", out)
 	}
 }

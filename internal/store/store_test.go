@@ -70,54 +70,54 @@ func TestOpenIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestListRunsNewestFirst(t *testing.T) {
+func TestListSessionsNewestFirst(t *testing.T) {
 	s, _ := openTemp(t)
 	ctx := context.Background()
 
 	for i, id := range []string{"old", "new"} {
-		err := s.CreateRun(ctx, db.CreateRunParams{ID: id, Command: "agent", StartTime: int64(i)})
+		err := s.CreateSession(ctx, db.CreateSessionParams{ID: id, StartTime: int64(i)})
 		if err != nil {
-			t.Fatalf("create run: %v", err)
+			t.Fatalf("create session: %v", err)
 		}
 	}
 
-	runs, err := s.ListRuns(ctx, db.ListRunsParams{Limit: 10})
+	sessions, err := s.ListSessions(ctx, db.ListSessionsParams{Limit: 10})
 	if err != nil {
-		t.Fatalf("list runs: %v", err)
+		t.Fatalf("list sessions: %v", err)
 	}
-	if len(runs) != 2 || runs[0].ID != "new" || runs[1].ID != "old" {
-		t.Fatalf("got %+v, want new then old", runs)
+	if len(sessions) != 2 || sessions[0].ID != "new" || sessions[1].ID != "old" {
+		t.Fatalf("got %+v, want new then old", sessions)
 	}
 }
 
-func TestListRunsFiltersByTag(t *testing.T) {
+func TestListSessionsFiltersByTag(t *testing.T) {
 	s, _ := openTemp(t)
 	ctx := context.Background()
 
 	v1, v2 := "v1", "v2"
-	for _, r := range []db.CreateRunParams{
-		{ID: "a", Tag: &v1, Command: "agent"},
-		{ID: "b", Tag: &v2, Command: "agent"},
-		{ID: "c", Command: "agent"},
+	for _, r := range []db.CreateSessionParams{
+		{ID: "a", Tag: &v1},
+		{ID: "b", Tag: &v2},
+		{ID: "c"},
 	} {
-		if err := s.CreateRun(ctx, r); err != nil {
-			t.Fatalf("create run: %v", err)
+		if err := s.CreateSession(ctx, r); err != nil {
+			t.Fatalf("create session: %v", err)
 		}
 	}
 
-	runs, err := s.ListRuns(ctx, db.ListRunsParams{Tag: &v2, Limit: 10})
+	sessions, err := s.ListSessions(ctx, db.ListSessionsParams{Tag: &v2, Limit: 10})
 	if err != nil {
-		t.Fatalf("list runs: %v", err)
+		t.Fatalf("list sessions: %v", err)
 	}
-	if len(runs) != 1 || runs[0].ID != "b" {
-		t.Fatalf("got %+v, want only run b", runs)
+	if len(sessions) != 1 || sessions[0].ID != "b" {
+		t.Fatalf("got %+v, want only session b", sessions)
 	}
 }
 
-func TestNewRunIDIsShortUniqueHex(t *testing.T) {
+func TestNewSessionIDIsShortUniqueHex(t *testing.T) {
 	seen := map[string]bool{}
 	for range 100 {
-		id := store.NewRunID()
+		id := store.NewSessionID()
 		if len(id) != 12 {
 			t.Fatalf("id %q has length %d, want 12", id, len(id))
 		}
@@ -131,9 +131,9 @@ func TestNewRunIDIsShortUniqueHex(t *testing.T) {
 	}
 }
 
-func spanRow(runID *string, spanID string) db.InsertSpanParams {
+func spanRow(sessionID, spanID string) db.InsertSpanParams {
 	return db.InsertSpanParams{
-		TraceID: "t1", SpanID: spanID, RunID: runID, Name: "chat",
+		TraceID: "t1", SpanID: spanID, SessionID: sessionID, Name: "chat",
 		Status: "ok", StartTime: 1, EndTime: 2, Attributes: "{}",
 	}
 }
@@ -150,11 +150,11 @@ func countSpans(t *testing.T, s *store.Store) int {
 func TestInsertSpans(t *testing.T) {
 	s, _ := openTemp(t)
 	ctx := context.Background()
-	runID := "run1"
-	if err := s.CreateRun(ctx, db.CreateRunParams{ID: runID, Command: "agent"}); err != nil {
-		t.Fatalf("create run: %v", err)
+	sessionID := "session1"
+	if err := s.CreateSession(ctx, db.CreateSessionParams{ID: sessionID}); err != nil {
+		t.Fatalf("create session: %v", err)
 	}
-	batch := []db.InsertSpanParams{spanRow(&runID, "s1"), spanRow(&runID, "s2")}
+	batch := []db.InsertSpanParams{spanRow(sessionID, "s1"), spanRow(sessionID, "s2")}
 
 	if err := s.InsertSpans(ctx, batch); err != nil {
 		t.Fatalf("insert spans: %v", err)
@@ -168,14 +168,12 @@ func TestInsertSpans(t *testing.T) {
 	}
 }
 
-func TestInsertSpansRejectsUnknownRun(t *testing.T) {
+func TestInsertSpansRejectsUnknownSession(t *testing.T) {
 	s, _ := openTemp(t)
-	unknown := "missing"
-
-	err := s.InsertSpans(context.Background(), []db.InsertSpanParams{spanRow(&unknown, "s1")})
+	err := s.InsertSpans(context.Background(), []db.InsertSpanParams{spanRow("missing", "s1")})
 
 	if err == nil {
-		t.Fatal("want foreign key error for unknown run")
+		t.Fatal("want foreign key error for unknown session")
 	}
 	if got := countSpans(t, s); got != 0 {
 		t.Errorf("got %d spans, want 0 after failed batch", got)

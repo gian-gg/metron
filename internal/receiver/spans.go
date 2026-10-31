@@ -14,8 +14,8 @@ import (
 	"github.com/gian-gg/metron/internal/store/db"
 )
 
-// toRows converts an OTLP export into span rows for runID.
-func toRows(runID string, req *coltracepb.ExportTraceServiceRequest) ([]db.InsertSpanParams, error) {
+// toRows converts an OTLP export into span rows for sessionID.
+func toRows(sessionID string, req *coltracepb.ExportTraceServiceRequest) ([]db.InsertSpanParams, error) {
 	var rows []db.InsertSpanParams
 	for _, rs := range req.GetResourceSpans() {
 		resource := rs.GetResource().GetAttributes()
@@ -29,7 +29,7 @@ func toRows(runID string, req *coltracepb.ExportTraceServiceRequest) ([]db.Inser
 					TraceID:      hex.EncodeToString(span.GetTraceId()),
 					SpanID:       hex.EncodeToString(span.GetSpanId()),
 					ParentSpanID: optionalHex(span.GetParentSpanId()),
-					RunID:        &runID,
+					SessionID:    sessionID,
 					Name:         span.GetName(),
 					Status:       statusName(span.GetStatus()),
 					StartTime:    toInt64(span.GetStartTimeUnixNano()),

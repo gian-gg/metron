@@ -8,7 +8,7 @@ metron is a small command-line tool that records what an AI agent does and lets 
 
 ## Usage
 
-Start the listener in your project. Tag the session so runs can be compared later:
+Start the listener in your project. Tag the session so versions can be compared later:
 
 ```bash
 metron serve --tag v1

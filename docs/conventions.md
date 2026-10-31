@@ -26,7 +26,7 @@ internal/      all logic, private to metron
 
 ## Code
 
-- Wrap errors with context: `fmt.Errorf("list runs: %w", err)`.
+- Wrap errors with context: `fmt.Errorf("list sessions: %w", err)`.
 - Comments are one line saying what something is or does. Most code needs none.
 - Every package has a one-line package comment (`doc.go` or `main.go`).
 - Nullable values are pointers (`*string`), like optional fields in TypeScript.
@@ -64,5 +64,5 @@ internal/      all logic, private to metron
 
 ## Git
 
-- Commit messages follow Conventional Commits: `feat(store): filter runs by tag`.
+- Commit messages follow Conventional Commits: `feat(store): filter sessions by tag`.
 - Commit `go.sum` and generated code in `internal/store/db/`.
