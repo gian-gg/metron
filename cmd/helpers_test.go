@@ -61,3 +61,11 @@ func span(sessionID, spanID, name, kind string, start int64) db.InsertSpanParams
 		Name: name, Kind: kind, Status: "ok", StartTime: start, EndTime: start + 1_000_000, Attributes: "{}",
 	}
 }
+
+// modelSpan is a span of kind model in its own trace, with token counts.
+func modelSpan(sessionID, traceID, spanID string, start, end, in, out int64) db.InsertSpanParams {
+	return db.InsertSpanParams{
+		TraceID: traceID, SpanID: spanID, SessionID: sessionID, Name: "chat", Kind: "model", Status: "ok",
+		StartTime: start, EndTime: end, InputTokens: &in, OutputTokens: &out, Attributes: "{}",
+	}
+}

@@ -33,6 +33,14 @@ metron show v1
 metron show 4d27
 ```
 
+Compare two tags, or two sessions, side by side. The change column is the second relative to the first:
+
+```bash
+metron compare v1 v2
+```
+
+It reports duration, errors, model and tool calls, and tokens per trace. Check the `traces` row first: a few traces on either side is a weak comparison.
+
 Spans are kept in `.metron/metron.db` in the directory where `serve` runs. Use `--db` to put it elsewhere, and `--port`, `--grpc-port` or `--listen` if the defaults do not suit. `--listen 0.0.0.0` exposes the unauthenticated listener to your network.
 
 ## License

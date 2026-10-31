@@ -21,7 +21,7 @@ func NewRootCmd() *cobra.Command {
 
 	root.PersistentFlags().String("db", store.DefaultPath, "path to the metron database")
 
-	root.AddCommand(newLsCmd(), newShowCmd(), newServeCmd())
+	root.AddCommand(newLsCmd(), newShowCmd(), newCompareCmd(), newServeCmd())
 	return root
 }
 
