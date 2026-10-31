@@ -49,6 +49,8 @@ Changing a prompt, a model or a tool and wondering whether the agent got better 
 go install github.com/gian-gg/metron@latest
 ```
 
+Or download a prebuilt binary for Linux, macOS or Windows from the [Releases](https://github.com/gian-gg/metron/releases) page.
+
 ## Quick start
 
 **1. Start the listener** in your project and tag the version you are about to test:

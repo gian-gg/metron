@@ -72,6 +72,16 @@ internal/           all logic, private to metron
 - Git hooks (lefthook): format and lint on commit, `go test -race ./...` on push.
 - Tools install to `~/go/bin`, which must be on `PATH`.
 
+## Releasing
+
+Releases are made by hand with GoReleaser (`.goreleaser.yaml`); there is no CI.
+
+1. Commit and push `main` with the tests passing (`go test -race ./...`).
+2. Tag the commit and push the tag: `git tag v0.1.0 && git push origin v0.1.0`.
+3. Publish: `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean`.
+
+This builds `metron` for Linux, macOS and Windows on amd64 and arm64, and uploads the archives, a checksums file and a changelog built from the commit messages to the GitHub release. `goreleaser release --snapshot --clean` does a local dry run into `dist/`. The version printed by `metron --version` is the tag, or the module version for a `go install`.
+
 ## Git
 
 - Commit messages follow Conventional Commits: `feat(store): filter sessions by tag`.
