@@ -11,6 +11,7 @@ import (
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 
+	"github.com/gian-gg/metron/internal/normalize"
 	"github.com/gian-gg/metron/internal/store/db"
 )
 
@@ -18,22 +19,28 @@ import (
 func toRows(sessionID string, req *coltracepb.ExportTraceServiceRequest) ([]db.InsertSpanParams, error) {
 	var rows []db.InsertSpanParams
 	for _, rs := range req.GetResourceSpans() {
-		resource := rs.GetResource().GetAttributes()
+		resource := keyValues(rs.GetResource().GetAttributes())
 		for _, ss := range rs.GetScopeSpans() {
 			for _, span := range ss.GetSpans() {
-				attrs, err := attributesJSON(span.GetAttributes(), resource)
+				spanAttrs := keyValues(span.GetAttributes())
+				attrs, err := attributesJSON(spanAttrs, resource)
 				if err != nil {
 					return nil, err
 				}
+				fields := normalize.Span(spanAttrs)
 				rows = append(rows, db.InsertSpanParams{
 					TraceID:      hex.EncodeToString(span.GetTraceId()),
 					SpanID:       hex.EncodeToString(span.GetSpanId()),
 					ParentSpanID: optionalHex(span.GetParentSpanId()),
 					SessionID:    sessionID,
 					Name:         span.GetName(),
+					Kind:         fields.Kind,
 					Status:       statusName(span.GetStatus()),
 					StartTime:    toInt64(span.GetStartTimeUnixNano()),
 					EndTime:      toInt64(span.GetEndTimeUnixNano()),
+					Model:        fields.Model,
+					InputTokens:  fields.InputTokens,
+					OutputTokens: fields.OutputTokens,
 					Attributes:   attrs,
 				})
 			}
@@ -68,10 +75,10 @@ func toInt64(ns uint64) int64 {
 	return int64(ns)
 }
 
-func attributesJSON(span, resource []*commonpb.KeyValue) (string, error) {
+func attributesJSON(span, resource map[string]any) (string, error) {
 	out, err := json.Marshal(map[string]any{
-		"span":     keyValues(span),
-		"resource": keyValues(resource),
+		"span":     span,
+		"resource": resource,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode attributes: %w", err)

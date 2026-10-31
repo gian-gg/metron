@@ -28,7 +28,7 @@ func TestAttributesJSON(t *testing.T) {
 	}
 	resource := []*commonpb.KeyValue{{Key: "service.name", Value: str("agent")}}
 
-	got, err := attributesJSON(span, resource)
+	got, err := attributesJSON(keyValues(span), keyValues(resource))
 	if err != nil {
 		t.Fatalf("attributesJSON: %v", err)
 	}

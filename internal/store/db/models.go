@@ -24,6 +24,5 @@ type Span struct {
 	Model        *string
 	InputTokens  *int64
 	OutputTokens *int64
-	CostUsd      *float64
 	Attributes   string
 }

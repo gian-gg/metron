@@ -103,6 +103,18 @@ func assertTrace(t *testing.T, r *Receiver, w *fakeWriter) {
 	if chat.Status != "error" || agent.Status != "unset" {
 		t.Errorf("status chat=%q agent=%q, want error and unset", chat.Status, agent.Status)
 	}
+	if chat.Kind != "model" || agent.Kind != "other" {
+		t.Errorf("kind chat=%q agent=%q, want model and other", chat.Kind, agent.Kind)
+	}
+	if chat.Model == nil || *chat.Model != "test-model" {
+		t.Errorf("chat model = %v, want test-model", chat.Model)
+	}
+	if chat.InputTokens == nil || *chat.InputTokens != 12 || chat.OutputTokens != nil {
+		t.Errorf("chat tokens in=%v out=%v, want 12 and nil", chat.InputTokens, chat.OutputTokens)
+	}
+	if agent.Model != nil || agent.InputTokens != nil {
+		t.Errorf("agent model=%v tokens=%v, want nil", agent.Model, agent.InputTokens)
+	}
 	if chat.StartTime == 0 || chat.EndTime < chat.StartTime {
 		t.Errorf("bad times start=%d end=%d", chat.StartTime, chat.EndTime)
 	}

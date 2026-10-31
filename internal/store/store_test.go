@@ -133,7 +133,7 @@ func TestNewSessionIDIsShortUniqueHex(t *testing.T) {
 
 func spanRow(sessionID, spanID string) db.InsertSpanParams {
 	return db.InsertSpanParams{
-		TraceID: "t1", SpanID: spanID, SessionID: sessionID, Name: "chat",
+		TraceID: "t1", SpanID: spanID, SessionID: sessionID, Name: "chat", Kind: "other",
 		Status: "ok", StartTime: 1, EndTime: 2, Attributes: "{}",
 	}
 }
@@ -177,5 +177,64 @@ func TestInsertSpansRejectsUnknownSession(t *testing.T) {
 	}
 	if got := countSpans(t, s); got != 0 {
 		t.Errorf("got %d spans, want 0 after failed batch", got)
+	}
+}
+
+func TestInsertSpansStoresKindModelAndTokens(t *testing.T) {
+	s, _ := openTemp(t)
+	ctx := context.Background()
+	if err := s.CreateSession(ctx, db.CreateSessionParams{ID: "session1"}); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	model, in, out := "gpt-5", int64(120), int64(30)
+	row := spanRow("session1", "s1")
+	row.Kind, row.Model, row.InputTokens, row.OutputTokens = "model", &model, &in, &out
+
+	if err := s.InsertSpans(ctx, []db.InsertSpanParams{row, spanRow("session1", "s2")}); err != nil {
+		t.Fatalf("insert spans: %v", err)
+	}
+
+	var (
+		kind              string
+		gotModel          *string
+		gotIn, gotOut     *int64
+		plainKind         string
+		plainModel        *string
+		plainIn, plainOut *int64
+		selectColumns     = "SELECT kind, model, input_tokens, output_tokens FROM spans WHERE span_id = ?"
+	)
+	if err := s.DB.QueryRowContext(ctx, selectColumns, "s1").Scan(&kind, &gotModel, &gotIn, &gotOut); err != nil {
+		t.Fatalf("read s1: %v", err)
+	}
+	if err := s.DB.QueryRowContext(ctx, selectColumns, "s2").Scan(&plainKind, &plainModel, &plainIn, &plainOut); err != nil {
+		t.Fatalf("read s2: %v", err)
+	}
+	if kind != "model" || gotModel == nil || *gotModel != "gpt-5" || gotIn == nil || *gotIn != 120 || gotOut == nil || *gotOut != 30 {
+		t.Errorf("s1 = %q %v %v %v, want model gpt-5 120 30", kind, gotModel, gotIn, gotOut)
+	}
+	if plainKind != "other" || plainModel != nil || plainIn != nil || plainOut != nil {
+		t.Errorf("s2 = %q %v %v %v, want other and NULLs", plainKind, plainModel, plainIn, plainOut)
+	}
+}
+
+func TestSpansHaveNoCostColumn(t *testing.T) {
+	s, _ := openTemp(t)
+
+	rows, err := s.DB.QueryContext(context.Background(), "SELECT name FROM pragma_table_info('spans')")
+	if err != nil {
+		t.Fatalf("table info: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if name == "cost_usd" {
+			t.Fatal("spans still has cost_usd")
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
 	}
 }
