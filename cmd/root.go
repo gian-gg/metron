@@ -3,6 +3,10 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/gian-gg/metron/cmd/compare"
+	"github.com/gian-gg/metron/cmd/ls"
+	"github.com/gian-gg/metron/cmd/serve"
+	"github.com/gian-gg/metron/cmd/show"
 	"github.com/gian-gg/metron/internal/store"
 )
 
@@ -21,10 +25,6 @@ func NewRootCmd() *cobra.Command {
 
 	root.PersistentFlags().String("db", store.DefaultPath, "path to the metron database")
 
-	root.AddCommand(newLsCmd(), newShowCmd(), newCompareCmd(), newServeCmd())
+	root.AddCommand(ls.New(), show.New(), compare.New(), serve.New())
 	return root
-}
-
-func dbPath(cmd *cobra.Command) (string, error) {
-	return cmd.Flags().GetString("db")
 }

@@ -3,26 +3,36 @@
 ## Layout
 
 ```
-main.go        entry point, hands off to cmd
-cmd/           CLI commands: parse flags, call into internal/
-internal/      all logic, private to metron
-  store/       SQLite: migrations, queries, generated code
-  receiver/    OTLP receiver that saves spans
-  render/      terminal output
+main.go             entry point, hands off to cmd
+cmd/                root command, --db flag, registers the commands
+  ls/ show/ compare/ serve/   one package per command
+  internal/session/ what the read commands share: opening the database
+internal/           all logic, private to metron
+  store/            SQLite: queries and methods
+    db/ migrations/ queries/  generated code, schema, SQL
+  receiver/         OTLP receiver that saves spans
+    spans/          OTLP export to span rows
+  normalize/        kind, model and tokens from GenAI attributes
+  compare/          metrics for two sets of traces
+  render/           terminal output, one package per view
+    internal/ui/    styles, table layout and formatting the views share
+  testutil/         helpers shared by the command tests
 ```
 
 - No `src/`, `utils/`, `helpers/` or `common/`. Name packages by what they do.
-- Split large packages by file, not into new packages.
+- A package per command and per view; split a package by file first, and into a package only when the parts have a different job or a shared piece forces it.
+- Code shared by sibling packages lives in an `internal/` folder beside them, so it is not public surface.
+- Methods of one type stay in one package, so `store` is split by file.
 
 ## Modularity
 
 - `cmd` stays thin: no SQL or formatting in commands; they call `store` and `render`.
-- One command per file in `cmd/`, built by a `newXxxCmd()` function. No package-level state, except build-time values like `Version`.
+- One package per command in `cmd/`, built by its `New()` function. No package-level state, except build-time values like `Version`.
 - Pass dependencies in instead of reaching for them: take an `io.Writer` and `now`, not `os.Stdout` and `time.Now()`.
 - Private by default: export only what another package needs.
 - `internal/` packages never import `cmd`.
 - Define interfaces in the package that uses them (e.g. `receiver.SpanWriter`), not the one that implements them.
-- One concern per file; shared helpers go in a named file inside the package (e.g. `render/format.go`).
+- One concern per file; shared helpers go in a named file inside the package (e.g. `render/internal/ui/format.go`).
 
 ## Code
 
@@ -51,7 +61,7 @@ internal/      all logic, private to metron
 
 ## Tests
 
-- Tests live next to the code they test, in `_test.go` files.
+- Tests live next to the code they test, in `_test.go` files. Command tests share `internal/testutil`.
 - Prefer table-driven tests.
 - Use `package x_test` to test through the public API, `package x` to test private helpers.
 - Use `t.TempDir()` for databases; never touch `.metron/` in tests.

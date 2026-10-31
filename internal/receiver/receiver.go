@@ -13,6 +13,7 @@ import (
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 
+	"github.com/gian-gg/metron/internal/receiver/spans"
 	"github.com/gian-gg/metron/internal/store/db"
 )
 
@@ -112,7 +113,7 @@ func (r *Receiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *Receiver) accept(ctx context.Context, req *coltracepb.ExportTraceServiceRequest) error {
-	rows, err := toRows(r.sessionID, req)
+	rows, err := spans.ToRows(r.sessionID, req)
 	if err != nil {
 		return err
 	}
