@@ -39,7 +39,7 @@ func TestTimeline(t *testing.T) {
 	session, spans := timelineFixture()
 	var buf bytes.Buffer
 
-	if err := Timeline(&buf, session, spans); err != nil {
+	if err := Timeline(&buf, "", []db.Session{session}, spans); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -70,7 +70,7 @@ func TestTimeline(t *testing.T) {
 func TestTimelineNoSpans(t *testing.T) {
 	var buf bytes.Buffer
 
-	if err := Timeline(&buf, db.Session{ID: "a1b2c3d4e5f6"}, nil); err != nil {
+	if err := Timeline(&buf, "", []db.Session{{ID: "a1b2c3d4e5f6"}}, nil); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -84,7 +84,7 @@ func TestTimelineIsPlainWhenPiped(t *testing.T) {
 	session, spans := timelineFixture()
 	var buf bytes.Buffer
 
-	if err := Timeline(&buf, session, spans); err != nil {
+	if err := Timeline(&buf, "", []db.Session{session}, spans); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 
@@ -128,6 +128,39 @@ func TestErrorCount(t *testing.T) {
 	for _, tt := range tests {
 		if got := errorCount(tt.n); got != tt.want {
 			t.Errorf("errorCount(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestTimelineForATagNamesTheTagAndItsSessions(t *testing.T) {
+	_, spans := timelineFixture()
+	end := int64(5)
+	sessions := []db.Session{{ID: "aaaaaaaaaaaa", EndTime: &end}, {ID: "bbbbbbbbbbbb"}}
+	var buf bytes.Buffer
+
+	if err := Timeline(&buf, "v1", sessions, spans); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+
+	out := strings.SplitN(buf.String(), "\n", 2)[0]
+	for _, want := range []string{"tag v1", "2 sessions", "running"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("header %q missing %q", out, want)
+		}
+	}
+	if strings.Contains(out, "session aaaaaaaa") {
+		t.Errorf("header should name the tag, not one session: %q", out)
+	}
+}
+
+func TestSessionCount(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{{1, "1 session"}, {3, "3 sessions"}}
+	for _, tt := range tests {
+		if got := sessionCount(tt.n); got != tt.want {
+			t.Errorf("sessionCount(%d) = %q, want %q", tt.n, got, tt.want)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package render
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,10 +22,10 @@ type trace struct {
 	spans []db.ListSessionSpansRow
 }
 
-// Timeline writes a session header, then its spans grouped by trace and ordered by start time.
-func Timeline(w io.Writer, s db.Session, spans []db.ListSessionSpansRow) error {
+// Timeline writes a header for tag (or for the one session when tag is empty), then the spans grouped by trace and ordered by start time.
+func Timeline(w io.Writer, tag string, sessions []db.Session, spans []db.ListSessionSpansRow) error {
 	st := newStyles(w)
-	if _, err := fmt.Fprintln(w, sessionHeader(s, st)); err != nil {
+	if _, err := fmt.Fprintln(w, timelineHeader(tag, sessions, st)); err != nil {
 		return err
 	}
 	if len(spans) == 0 {
@@ -41,6 +42,18 @@ func Timeline(w io.Writer, s db.Session, spans []db.ListSessionSpansRow) error {
 		}
 	}
 	return nil
+}
+
+func timelineHeader(tag string, sessions []db.Session, st styles) string {
+	if tag == "" {
+		return sessionHeader(sessions[0], st)
+	}
+	running := slices.ContainsFunc(sessions, func(s db.Session) bool { return s.EndTime == nil })
+	state := statusDone
+	if running {
+		state = statusRunning
+	}
+	return strings.Join([]string{"tag " + tag, sessionCount(len(sessions)), state}, st.dim.Render(" · "))
 }
 
 func sessionHeader(s db.Session, st styles) string {
@@ -133,6 +146,13 @@ func tokens(in, out *int64) string {
 		return placeholder
 	}
 	return strings.Join(parts, " · ")
+}
+
+func sessionCount(n int) string {
+	if n == 1 {
+		return "1 session"
+	}
+	return fmt.Sprintf("%d sessions", n)
 }
 
 func errorCount(n int) string {

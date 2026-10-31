@@ -23,10 +23,13 @@ metron ls
 metron ls --tag v1
 ```
 
-See what an agent did in a session, step by step. With no argument it shows the latest session, or pass an ID or ID prefix from `ls`:
+Sessions that share a tag are grouped, so starting `serve --tag v1` twice adds to `v1`. `metron ls --sessions` lists every session on its own.
+
+See what an agent did, step by step. Pass a tag to see all of its sessions, or a session ID from `ls --sessions` to see one. With no argument it shows the most recent:
 
 ```bash
 metron show
+metron show v1
 metron show 4d27
 ```
 

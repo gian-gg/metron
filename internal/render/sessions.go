@@ -49,7 +49,11 @@ func status(s db.Session) string {
 }
 
 func statusCell(s db.Session, st styles) string {
-	if status(s) == statusRunning {
+	return runningCell(status(s) == statusRunning, st)
+}
+
+func runningCell(running bool, st styles) string {
+	if running {
 		return st.running.Render("● " + statusRunning)
 	}
 	return st.ok.Render("✓ " + statusDone)

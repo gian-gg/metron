@@ -98,3 +98,64 @@ func TestShowSessionWithoutSpans(t *testing.T) {
 		t.Errorf("missing empty hint:\n%s", out)
 	}
 }
+
+func TestShowByTagMergesEverySessionWithIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metron.db")
+	v1 := "v1"
+	seed(t, path,
+		db.CreateSessionParams{ID: "aaaaaaaaaaaa", Tag: &v1, StartTime: 1},
+		db.CreateSessionParams{ID: "bbbbbbbbbbbb", Tag: &v1, StartTime: 2},
+		db.CreateSessionParams{ID: "cccccccccccc", StartTime: 3},
+	)
+	seedSpans(t, path,
+		span("aaaaaaaaaaaa", "s1", "first-span", "other", 10),
+		span("bbbbbbbbbbbb", "s2", "second-span", "tool", 20),
+		span("cccccccccccc", "s3", "untagged-span", "tool", 30),
+	)
+
+	out := execute(t, "show", "v1", "--db", path)
+
+	if !strings.Contains(out, "tag v1") || !strings.Contains(out, "2 sessions") {
+		t.Errorf("header should name the tag and its sessions:\n%s", out)
+	}
+	if !strings.Contains(out, "first-span") || !strings.Contains(out, "second-span") || strings.Contains(out, "untagged-span") {
+		t.Errorf("want the spans of both v1 sessions and nothing else:\n%s", out)
+	}
+}
+
+func TestShowByIDOfATaggedSessionShowsOnlyThatSession(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metron.db")
+	v1 := "v1"
+	seed(t, path,
+		db.CreateSessionParams{ID: "aaaaaaaaaaaa", Tag: &v1, StartTime: 1},
+		db.CreateSessionParams{ID: "bbbbbbbbbbbb", Tag: &v1, StartTime: 2},
+	)
+	seedSpans(t, path, span("aaaaaaaaaaaa", "s1", "first-span", "other", 10), span("bbbbbbbbbbbb", "s2", "second-span", "tool", 20))
+
+	out := execute(t, "show", "aaaa", "--db", path)
+
+	if !strings.Contains(out, "session aaaaaaaa") || !strings.Contains(out, "first-span") || strings.Contains(out, "second-span") {
+		t.Errorf("want only session aaaa:\n%s", out)
+	}
+}
+
+func TestShowWithoutAnArgumentUsesTheLatestGroup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metron.db")
+	v1 := "v1"
+	seed(t, path,
+		db.CreateSessionParams{ID: "aaaaaaaaaaaa", Tag: &v1, StartTime: 1},
+		db.CreateSessionParams{ID: "bbbbbbbbbbbb", StartTime: 2},
+		db.CreateSessionParams{ID: "cccccccccccc", Tag: &v1, StartTime: 3},
+	)
+	seedSpans(t, path,
+		span("aaaaaaaaaaaa", "s1", "first-span", "other", 10),
+		span("bbbbbbbbbbbb", "s2", "middle-span", "tool", 20),
+		span("cccccccccccc", "s3", "last-span", "tool", 30),
+	)
+
+	out := execute(t, "show", "--db", path)
+
+	if !strings.Contains(out, "tag v1") || !strings.Contains(out, "first-span") || !strings.Contains(out, "last-span") || strings.Contains(out, "middle-span") {
+		t.Errorf("want the whole v1 group:\n%s", out)
+	}
+}

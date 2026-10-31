@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -9,15 +8,16 @@ import (
 
 	"github.com/gian-gg/metron/internal/render"
 	"github.com/gian-gg/metron/internal/store"
-	"github.com/gian-gg/metron/internal/store/db"
 )
 
 func newShowCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "show [session]",
-		Short: "Show the spans of a session as a timeline",
-		Long:  "Show the spans of a session as a timeline, grouped by trace.\nThe session is an ID or ID prefix from ls; the latest session is used when none is given.",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "show [tag or session]",
+		Short: "Show the spans of a tag or session as a timeline",
+		Long: "Show spans as a timeline, grouped by trace.\n" +
+			"A tag shows every session recorded under it; a session ID or ID prefix from ls --sessions shows that one session.\n" +
+			"With no argument, the most recent tag or session is shown.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := openExisting(cmd)
 			if errors.Is(err, errNoDatabase) {
@@ -29,7 +29,7 @@ func newShowCmd() *cobra.Command {
 			}
 			defer func() { _ = s.Close() }()
 
-			session, found, err := pickSession(cmd.Context(), s, args)
+			group, found, err := pickGroup(cmd, s, args)
 			if err != nil {
 				return err
 			}
@@ -38,27 +38,20 @@ func newShowCmd() *cobra.Command {
 				return nil
 			}
 
-			spans, err := s.ListSessionSpans(cmd.Context(), session.ID)
+			spans, err := s.GroupSpans(cmd.Context(), group)
 			if err != nil {
-				return fmt.Errorf("list spans: %w", err)
+				return err
 			}
-			return render.Timeline(cmd.OutOrStdout(), session, spans)
+			return render.Timeline(cmd.OutOrStdout(), group.Tag, group.Sessions, spans)
 		},
 	}
 }
 
-// pickSession returns the session named by args, or the latest one when none is named.
-func pickSession(ctx context.Context, s *store.Store, args []string) (db.Session, bool, error) {
+// pickGroup returns the group named by args, or the latest one when none is named.
+func pickGroup(cmd *cobra.Command, s *store.Store, args []string) (store.Group, bool, error) {
 	if len(args) == 1 {
-		session, err := s.FindSession(ctx, args[0])
-		return session, err == nil, err
+		group, err := s.FindGroup(cmd.Context(), args[0])
+		return group, err == nil, err
 	}
-	latest, err := s.ListSessions(ctx, db.ListSessionsParams{Limit: 1})
-	if err != nil {
-		return db.Session{}, false, fmt.Errorf("list sessions: %w", err)
-	}
-	if len(latest) == 0 {
-		return db.Session{}, false, nil
-	}
-	return latest[0], true, nil
+	return s.LatestGroup(cmd.Context())
 }
