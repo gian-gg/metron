@@ -42,3 +42,22 @@ func seed(t *testing.T, path string, sessions ...db.CreateSessionParams) {
 		}
 	}
 }
+
+func seedSpans(t *testing.T, path string, spans ...db.InsertSpanParams) {
+	t.Helper()
+	s, err := store.Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+	if err := s.InsertSpans(context.Background(), spans); err != nil {
+		t.Fatalf("insert spans: %v", err)
+	}
+}
+
+func span(sessionID, spanID, name, kind string, start int64) db.InsertSpanParams {
+	return db.InsertSpanParams{
+		TraceID: "5b8efff798038103d269b633813fc60c", SpanID: spanID, SessionID: sessionID,
+		Name: name, Kind: kind, Status: "ok", StartTime: start, EndTime: start + 1_000_000, Attributes: "{}",
+	}
+}

@@ -3,11 +3,7 @@ package render
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 
 	"github.com/gian-gg/metron/internal/store/db"
 )
@@ -34,23 +30,7 @@ func Sessions(w io.Writer, sessions []db.Session, now time.Time) error {
 		})
 	}
 
-	t := table.New().
-		BorderTop(false).BorderBottom(false).BorderLeft(false).BorderRight(false).
-		BorderHeader(false).BorderColumn(false).
-		Headers(sessionHeaders...).
-		Rows(rows...).
-		StyleFunc(func(row, col int) lipgloss.Style {
-			s := st.cell
-			if row == table.HeaderRow {
-				s = st.header
-			}
-			if col < len(sessionHeaders)-1 {
-				s = s.PaddingRight(columnGap)
-			}
-			return s
-		})
-
-	_, err := fmt.Fprintln(w, trimLines(t.Render()))
+	_, err := fmt.Fprintln(w, renderTable(st, sessionHeaders, rows))
 	return err
 }
 
@@ -80,12 +60,4 @@ func dimIfPlaceholder(s string, st styles) string {
 		return st.dim.Render(s)
 	}
 	return s
-}
-
-func trimLines(s string) string {
-	lines := strings.Split(s, "\n")
-	for i, l := range lines {
-		lines[i] = strings.TrimRight(l, " ")
-	}
-	return strings.Join(lines, "\n")
 }

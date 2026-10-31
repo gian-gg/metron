@@ -23,6 +23,13 @@ metron ls
 metron ls --tag v1
 ```
 
+See what an agent did in a session, step by step. With no argument it shows the latest session, or pass an ID or ID prefix from `ls`:
+
+```bash
+metron show
+metron show 4d27
+```
+
 Spans are kept in `.metron/metron.db` in the directory where `serve` runs. Use `--db` to put it elsewhere, and `--port`, `--grpc-port` or `--listen` if the defaults do not suit. `--listen 0.0.0.0` exposes the unauthenticated listener to your network.
 
 ## License
