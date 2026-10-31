@@ -50,6 +50,69 @@ func (q *Queries) FinishSession(ctx context.Context, arg FinishSessionParams) er
 	return err
 }
 
+const listGroups = `-- name: ListGroups :many
+SELECT
+    CAST(COALESCE(s.tag, s.id) AS TEXT)                                AS name,
+    CAST(MAX(s.tag IS NOT NULL) AS INTEGER)                            AS tagged,
+    CAST(COUNT(DISTINCT s.id) AS INTEGER)                              AS sessions,
+    CAST(COUNT(DISTINCT sp.trace_id) AS INTEGER)                       AS traces,
+    CAST(MIN(s.start_time) AS INTEGER)                                 AS started,
+    CAST(MAX(COALESCE(sp.end_time, s.end_time, s.start_time)) AS INTEGER) AS last_active,
+    CAST(MAX(s.end_time IS NULL) AS INTEGER)                           AS running
+FROM sessions s
+LEFT JOIN spans sp ON sp.session_id = s.id
+WHERE s.tag = ?1 OR ?1 IS NULL
+GROUP BY COALESCE(s.tag, s.id)
+ORDER BY started DESC
+LIMIT ?2
+`
+
+type ListGroupsParams struct {
+	Tag   *string
+	Limit int64
+}
+
+type ListGroupsRow struct {
+	Name       string
+	Tagged     int64
+	Sessions   int64
+	Traces     int64
+	Started    int64
+	LastActive int64
+	Running    int64
+}
+
+func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGroups, arg.Tag, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGroupsRow
+	for rows.Next() {
+		var i ListGroupsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Tagged,
+			&i.Sessions,
+			&i.Traces,
+			&i.Started,
+			&i.LastActive,
+			&i.Running,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSessions = `-- name: ListSessions :many
 SELECT id, tag, start_time, end_time FROM sessions
 WHERE tag = ?1 OR ?1 IS NULL
@@ -98,6 +161,40 @@ LIMIT 2
 
 func (q *Queries) SessionsByPrefix(ctx context.Context, prefix string) ([]Session, error) {
 	rows, err := q.db.QueryContext(ctx, sessionsByPrefix, prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Session
+	for rows.Next() {
+		var i Session
+		if err := rows.Scan(
+			&i.ID,
+			&i.Tag,
+			&i.StartTime,
+			&i.EndTime,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sessionsByTag = `-- name: SessionsByTag :many
+SELECT id, tag, start_time, end_time FROM sessions
+WHERE tag = ?
+ORDER BY start_time
+`
+
+func (q *Queries) SessionsByTag(ctx context.Context, tag *string) ([]Session, error) {
+	rows, err := q.db.QueryContext(ctx, sessionsByTag, tag)
 	if err != nil {
 		return nil, err
 	}
