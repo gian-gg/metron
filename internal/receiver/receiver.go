@@ -16,32 +16,38 @@ import (
 	"github.com/gian-gg/metron/internal/store/db"
 )
 
-const (
-	listenAddr        = "127.0.0.1:0"
-	readHeaderTimeout = 10 * time.Second
-)
+const readHeaderTimeout = 10 * time.Second
 
 // SpanWriter saves converted spans.
 type SpanWriter interface {
 	InsertSpans(ctx context.Context, spans []db.InsertSpanParams) error
 }
 
-// Receiver accepts OTLP trace exports for one run on a single local port.
+// Receiver accepts OTLP trace exports for one session on its listen addresses.
 type Receiver struct {
 	runID  string
 	writer SpanWriter
 	server *http.Server
 	grpc   *grpc.Server
 	mux    *http.ServeMux
-	addr   string
+	addrs  []string
 	count  atomic.Int64
 }
 
-// Start listens on a random local port and serves OTLP over HTTP and gRPC.
-func Start(runID string, w SpanWriter) (*Receiver, error) {
-	ln, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		return nil, fmt.Errorf("listen for spans: %w", err)
+// Start listens on every address and serves OTLP over HTTP and gRPC on each.
+func Start(runID string, w SpanWriter, addrs []string) (*Receiver, error) {
+	if len(addrs) == 0 {
+		return nil, errors.New("listen for spans: no address given")
+	}
+
+	listeners := make([]net.Listener, 0, len(addrs))
+	for _, addr := range addrs {
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			closeAll(listeners)
+			return nil, fmt.Errorf("listen for spans on %s: %w", addr, err)
+		}
+		listeners = append(listeners, ln)
 	}
 
 	r := &Receiver{
@@ -49,7 +55,6 @@ func Start(runID string, w SpanWriter) (*Receiver, error) {
 		writer: w,
 		grpc:   grpc.NewServer(),
 		mux:    http.NewServeMux(),
-		addr:   ln.Addr().String(),
 	}
 	coltracepb.RegisterTraceServiceServer(r.grpc, &traceService{receiver: r})
 	r.mux.HandleFunc("POST /v1/traces", r.handleTraces)
@@ -63,17 +68,26 @@ func Start(runID string, w SpanWriter) (*Receiver, error) {
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 
-	go func() {
-		if err := r.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			_ = ln.Close()
-		}
-	}()
+	for _, ln := range listeners {
+		r.addrs = append(r.addrs, ln.Addr().String())
+		go func() {
+			if err := r.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				_ = ln.Close()
+			}
+		}()
+	}
 	return r, nil
 }
 
-// Endpoint is the base URL to give OTLP exporters.
-func (r *Receiver) Endpoint() string {
-	return "http://" + r.addr
+func closeAll(listeners []net.Listener) {
+	for _, ln := range listeners {
+		_ = ln.Close()
+	}
+}
+
+// Addrs are the addresses the receiver is listening on.
+func (r *Receiver) Addrs() []string {
+	return append([]string(nil), r.addrs...)
 }
 
 // SpanCount is the number of spans accepted so far.

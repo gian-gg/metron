@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -45,12 +46,16 @@ func (f *fakeWriter) byName() map[string]db.InsertSpanParams {
 func startReceiver(t *testing.T) (*Receiver, *fakeWriter) {
 	t.Helper()
 	w := &fakeWriter{}
-	r, err := Start("run1", w)
+	r, err := Start("run1", w, []string{"127.0.0.1:0"})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 	return r, w
+}
+
+func endpoint(r *Receiver) string {
+	return "http://" + r.Addrs()[0]
 }
 
 // sendTrace exports an "agent" span with a failing "chat" child through exp.
@@ -113,7 +118,7 @@ func assertTrace(t *testing.T, r *Receiver, w *fakeWriter) {
 
 func TestReceiverHTTPProtobuf(t *testing.T) {
 	r, w := startReceiver(t)
-	exp, err := otlptracehttp.New(context.Background(), otlptracehttp.WithEndpointURL(r.Endpoint()+"/v1/traces"))
+	exp, err := otlptracehttp.New(context.Background(), otlptracehttp.WithEndpointURL(endpoint(r)+"/v1/traces"))
 	if err != nil {
 		t.Fatalf("exporter: %v", err)
 	}
@@ -126,7 +131,7 @@ func TestReceiverHTTPProtobuf(t *testing.T) {
 func TestReceiverHTTPGzip(t *testing.T) {
 	r, w := startReceiver(t)
 	exp, err := otlptracehttp.New(context.Background(),
-		otlptracehttp.WithEndpointURL(r.Endpoint()+"/v1/traces"),
+		otlptracehttp.WithEndpointURL(endpoint(r)+"/v1/traces"),
 		otlptracehttp.WithCompression(otlptracehttp.GzipCompression),
 	)
 	if err != nil {
@@ -140,7 +145,7 @@ func TestReceiverHTTPGzip(t *testing.T) {
 
 func TestReceiverGRPC(t *testing.T) {
 	r, w := startReceiver(t)
-	exp, err := otlptracegrpc.New(context.Background(), otlptracegrpc.WithEndpointURL(r.Endpoint()))
+	exp, err := otlptracegrpc.New(context.Background(), otlptracegrpc.WithEndpointURL(endpoint(r)))
 	if err != nil {
 		t.Fatalf("exporter: %v", err)
 	}
@@ -158,7 +163,7 @@ const hexJSONTrace = `{"resourceSpans":[{"resource":{"attributes":[{"key":"servi
 func TestReceiverHTTPJSONUsesHexIDs(t *testing.T) {
 	r, w := startReceiver(t)
 
-	resp, err := http.Post(r.Endpoint()+"/v1/traces", "application/json", strings.NewReader(hexJSONTrace))
+	resp, err := http.Post(endpoint(r)+"/v1/traces", "application/json", strings.NewReader(hexJSONTrace))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -186,7 +191,7 @@ func TestReceiverHTTPJSONUsesHexIDs(t *testing.T) {
 func TestReceiverRejectsUnsupportedContentType(t *testing.T) {
 	r, _ := startReceiver(t)
 
-	resp, err := http.Post(r.Endpoint()+"/v1/traces", "text/plain", bytes.NewReader([]byte("hi")))
+	resp, err := http.Post(endpoint(r)+"/v1/traces", "text/plain", bytes.NewReader([]byte("hi")))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -200,7 +205,7 @@ func TestReceiverRejectsUnsupportedContentType(t *testing.T) {
 func TestReceiverRejectsBadBody(t *testing.T) {
 	r, _ := startReceiver(t)
 
-	resp, err := http.Post(r.Endpoint()+"/v1/traces", "application/x-protobuf", bytes.NewReader([]byte{0xff, 0xff}))
+	resp, err := http.Post(endpoint(r)+"/v1/traces", "application/x-protobuf", bytes.NewReader([]byte{0xff, 0xff}))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -208,5 +213,62 @@ func TestReceiverRejectsBadBody(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestReceiverListensOnEveryAddress(t *testing.T) {
+	w := &fakeWriter{}
+	r, err := Start("run1", w, []string{"127.0.0.1:0", "127.0.0.1:0"})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	addrs := r.Addrs()
+	if len(addrs) != 2 || addrs[0] == addrs[1] {
+		t.Fatalf("addrs = %v, want two distinct addresses", addrs)
+	}
+
+	for _, addr := range addrs {
+		resp, err := http.Post("http://"+addr+"/v1/traces", "application/json", strings.NewReader(hexJSONTrace))
+		if err != nil {
+			t.Fatalf("post to %s: %v", addr, err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: status %d, want 200", addr, resp.StatusCode)
+		}
+	}
+	if got := r.SpanCount(); got != 2 {
+		t.Errorf("SpanCount = %d, want 2", got)
+	}
+
+	if err := r.Shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+	for _, addr := range addrs {
+		if conn, err := net.Dial("tcp", addr); err == nil {
+			_ = conn.Close()
+			t.Errorf("%s still accepts connections after shutdown", addr)
+		}
+	}
+}
+
+func TestStartFailsWhenAddressIsTaken(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = taken.Close() }()
+	free := "127.0.0.1:0"
+
+	_, err = Start("run1", &fakeWriter{}, []string{free, taken.Addr().String()})
+
+	if err == nil || !strings.Contains(err.Error(), taken.Addr().String()) {
+		t.Fatalf("err = %v, want one naming %s", err, taken.Addr())
+	}
+}
+
+func TestStartRequiresAnAddress(t *testing.T) {
+	if _, err := Start("run1", &fakeWriter{}, nil); err == nil {
+		t.Fatal("want an error when no address is given")
 	}
 }
