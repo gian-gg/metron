@@ -1,2 +1,2 @@
-// Package normalize maps framework-specific span attributes to model, tokens and cost.
+// Package normalize maps OpenTelemetry GenAI span attributes to kind, model and token counts.
 package normalize
