@@ -76,11 +76,11 @@ internal/           all logic, private to metron
 
 Releases are made by hand with GoReleaser (`.goreleaser.yaml`); there is no CI.
 
-1. Commit and push `main` with the tests passing (`go test -race ./...`).
-2. Tag the commit and push the tag: `git tag v0.1.0 && git push origin v0.1.0`.
-3. Publish: `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean`.
+1. Write the release notes in `docs/releases/vX.Y.Z.md`, then commit and push `main` with the tests passing (`go test -race ./...`). GoReleaser refuses to run from a dirty tree.
+2. Tag the commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. Publish: `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean --release-notes docs/releases/vX.Y.Z.md`.
 
-This builds `metron` for Linux, macOS and Windows on amd64 and arm64, and uploads the archives, a checksums file and a changelog built from the commit messages to the GitHub release. `goreleaser release --snapshot --clean` does a local dry run into `dist/`. The version printed by `metron --version` is the tag, or the module version for a `go install`.
+This builds `metron` for Linux, macOS and Windows on amd64 and arm64, and uploads the archives, a checksums file and your release notes to the GitHub release. `goreleaser release --snapshot --clean` does a local dry run into `dist/`. The version printed by `metron --version` is the tag, or the module version for a `go install`.
 
 ## Git
 
