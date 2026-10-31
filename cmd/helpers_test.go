@@ -42,17 +42,3 @@ func seed(t *testing.T, path string, runs ...db.CreateRunParams) {
 		}
 	}
 }
-
-func allRuns(t *testing.T, path string) []db.Run {
-	t.Helper()
-	s, err := store.Open(context.Background(), path)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer func() { _ = s.Close() }()
-	runs, err := s.ListRuns(context.Background(), db.ListRunsParams{Limit: 100})
-	if err != nil {
-		t.Fatalf("list runs: %v", err)
-	}
-	return runs
-}
